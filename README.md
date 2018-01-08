@@ -38,7 +38,7 @@ mainflux-lora-adapter
 if `$GOBIN` is in `$PATH` (otherwise use `$GOBIN/mainflux-lora-adapter`)
 
 ### Documentation
-Development documentation can be found [here](http://mainflux.io/).
+Development documentation can be found [here](http://mainflux.readthedocs.io/en/latest/).
 
 ### Community
 #### Mailing lists
