@@ -1,30 +1,36 @@
-package main
+package lora
 
 import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	log "github.com/Sirupsen/logrus"
-	"github.com/eclipse/paho.mqtt.golang"
 	"sync"
+
+	"github.com/containous/traefik/log"
+	"github.com/eclipse/paho.mqtt.golang"
 )
 
-// Backend implements a MQTT pub-sub backend.
-type Backend struct {
+// Adapter implements a MQTT pub-sub adapter between LoRa Sever and Mainflux
+type Adapter struct {
 	conn mqtt.Client
 	// Are we connecting to LoRa Server or to Mainflux
 	isLora bool
 	mutex  sync.RWMutex
 }
 
-var (
-	loraBackend     *Backend
-	mainfluxBackend *Backend
+const (
+	loraServerTopic string = "application/+/node/+/rx"
+	mainfluxTopic   string = "/lora"
 )
 
-// NewBackend creates a new Backend.
-func NewBackend(server, username, password string, isLora bool) (*Backend, error) {
-	b := Backend{}
+var (
+	loraAdapter     *Adapter
+	mainfluxAdapter *Adaper
+)
+
+// NewAdapter creates a new Adapter
+func NewAdapter(server, username, password string, isLora bool) (*Adapter, error) {
+	b := Adapter{}
 	opts := mqtt.NewClientOptions()
 	opts.AddBroker(server)
 	opts.SetUsername(username)
@@ -44,30 +50,28 @@ func NewBackend(server, username, password string, isLora bool) (*Backend, error
 }
 
 // Send MQTT message
-func (b *Backend) SendMQTTMsg(topic string, data []byte) error {
-	log.WithField("topic", topic).Info("backend publishing packet: ", string(data))
+func (b *Adapter) SendMQTTMsg(topic string, data []byte) error {
 	if token := b.conn.Publish(topic, 0, false, data); token.Wait() && token.Error() != nil {
 		return token.Error()
 	}
 	return nil
 }
 
-// Close closes the backend.
-func (b *Backend) Close() {
+// Close closes the backend
+func (b *Adapter) Close() {
 	b.conn.Disconnect(250) // wait 250 milisec to complete pending actions
-	log.Info("-- DISCONNECTING\n")
 }
 
 // Subscribe to lora server messages
-func (b *Backend) Sub() error {
+func (b *Adapter) Sub() error {
 	switch b.isLora {
 	case true:
-		if s := b.conn.Subscribe("application/+/node/+/rx", 0, b.MessageHandler); s.Wait() && s.Error() != nil {
+		if s := b.conn.Subscribe(loraServerTopic, 0, b.MessageHandler); s.Wait() && s.Error() != nil {
 			log.Info("Failed to subscribe, err: %v\n", s.Error())
 			return s.Error()
 		}
 	case false:
-		// For now we deo not SUB to Mainflux
+		// For now we do not SUB to Mainflux
 		break
 	}
 
@@ -75,11 +79,7 @@ func (b *Backend) Sub() error {
 }
 
 // Handler for received messages from loraserver
-func (b *Backend) MessageHandler(c mqtt.Client, msg mqtt.Message) {
-	log.WithField("topic", msg.Topic()).Info("backend: packet received")
-	log.Info("TOPIC: %s\n", msg.Topic())
-	log.Info("MSG: %s\n", msg.Payload())
-
+func (b *Adapter) MessageHandler(c mqtt.Client, msg mqtt.Message) {
 	switch b.isLora {
 	case true:
 		// Mainflux backend is subscribed to LoRa Network Server and recieves LoRa messages
@@ -97,9 +97,7 @@ func (b *Backend) MessageHandler(c mqtt.Client, msg mqtt.Message) {
 			log.Errorf("\nerror: decode base64 failed")
 		}
 
-		topic := cfg.LORAChannel
-		mainfluxBackend.SendMQTTMsg(topic, data)
-		log.Info(" --> PUSH DATA: %s to %s\n", topic, data)
+		mainfluxBackend.SendMQTTMsg(mainfluxTopic, data)
 	case false:
 		// LoRa backend is not currently subsctibed to Mainflux MQTT broker
 		break
@@ -107,7 +105,7 @@ func (b *Backend) MessageHandler(c mqtt.Client, msg mqtt.Message) {
 
 }
 
-func (b *Backend) onConnected(c mqtt.Client) {
+func (b *Adapter) onConnected(c mqtt.Client) {
 	defer b.mutex.RUnlock()
 	b.mutex.RLock()
 	log.Info("backend: connected to mqtt broker")

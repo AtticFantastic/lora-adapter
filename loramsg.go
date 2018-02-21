@@ -1,7 +1,5 @@
 package main
 
-import ()
-
 type DataRate struct {
 	Modulation   string  `json:"modulation"`
 	Bandwith     float64 `json:"bandwith"`

@@ -1,23 +1,20 @@
-package main
+package lora
 
-// Config struct
+const (
+	defaultPort       = 48071
+	defaultDistroHost = "127.0.0.1"
+)
+
 type Config struct {
-	// HTTP
-	HTTPHost string
-	HTTPPort int
-
-	// MQTT
-	MQTTMainfluxHost string
-	MQTTMainfluxPort int
-
-	MQTTLoraHost string
-	MQTTLoraPort int
-
-	// LoRa
-	LORAChannel string
-
-	// Log
-	LogFile string
+	Port       int
+	DistroHost string
 }
 
 var cfg Config
+
+func GetDefaultConfig() Config {
+	return Config{
+		Port:       defaultPort,
+		DistroHost: defaultDistroHost,
+	}
+}
