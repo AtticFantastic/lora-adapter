@@ -6,16 +6,16 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/mainflux/mainflux/lora-adapter/adapter"
+	adapter "github.com/mainflux/lora-adapter"
 	"go.uber.org/zap"
 )
 
 const (
-	port               int    = 6070
-	defMainfluxMqttURL string = "tcp://localhost:1883"
-	envMainfluxMqttURL string = "LORA_ADAPTER_MAINFLUX_URL"
-	defLoraMqttURL     string = "tcp://localhost:1884"
-	envLoraMqttURL     string = "LORA_ADAPTER_LORASERVER_URL"
+	port           int    = 6070
+	defMainfluxURL string = "tcp://localhost:1883"
+	envMainfluxURL string = "LORA_ADAPTER_MAINFLUX_URL"
+	defLoraURL     string = "tcp://localhost:1884"
+	envLoraURL     string = "LORA_ADAPTER_LORASERVER_URL"
 )
 
 type config struct {
@@ -37,12 +37,14 @@ func main() {
 	adapter.InitLogger(logger)
 
 	// Create adapters that connect as MQTT clients to brokers of Mainflux and LoRa Server
-	if mainfluxAdapter, err := NewAdapter(cfg.MainfluxURL, "", "", false); err != nil {
+	mainfluxAdapter, err := adapter.NewAdapter(cfg.MainfluxURL, "", "", false)
+	if err != nil {
 		logger.Error("Failed to Mainflux adapter", zap.Error(err))
 		return
 	}
 
-	if loraAdapter, err = NewAdapter(cfg.LoraURL, "", "", true); err != nil {
+	loraAdapter, err := adapter.NewAdapter(cfg.LoraURL, "", "", true)
+	if err != nil {
 		logger.Error("Failed to LoRa Server adapter", zap.Error(err))
 		return
 	}
@@ -50,7 +52,7 @@ func main() {
 	errs := make(chan error, 3)
 
 	go func() {
-		errs <- MainfluxAdapter.Sub()
+		errs <- mainfluxAdapter.Sub()
 	}()
 
 	go func() {
@@ -63,7 +65,8 @@ func main() {
 		errs <- fmt.Errorf("%s", <-c)
 	}()
 
-	logger.Log("terminated", <-errs)
+	c := <-errs
+	logger.Info("terminated", zap.String("error", c.Error()))
 }
 
 func getenv(key, fallback string) string {

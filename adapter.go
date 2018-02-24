@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/containous/traefik/log"
 	"github.com/eclipse/paho.mqtt.golang"
 	"go.uber.org/zap"
 )
@@ -26,7 +25,7 @@ const (
 
 var (
 	loraAdapter     *Adapter
-	mainfluxAdapter *Adaper
+	mainfluxAdapter *Adapter
 )
 
 // NewAdapter creates a new Adapter
@@ -39,7 +38,6 @@ func NewAdapter(server, username, password string, isLora bool) (*Adapter, error
 	opts.SetOnConnectHandler(b.onConnected)
 	opts.SetConnectionLostHandler(b.onConnectionLost)
 
-	log.WithField("server", server).Info("backend: connecting to mqtt broker")
 	b.conn = mqtt.NewClient(opts)
 	if token := b.conn.Connect(); token.Wait() && token.Error() != nil {
 		return nil, token.Error()
@@ -52,7 +50,8 @@ func NewAdapter(server, username, password string, isLora bool) (*Adapter, error
 
 // Send MQTT message
 func (b *Adapter) SendMQTTMsg(topic string, data []byte) error {
-	if token := b.conn.Publish(topic, 0, false, data), err := token.Error(); token.Wait() && err != nil {
+	token := b.conn.Publish(topic, 0, false, data)
+	if err := token.Error(); token.Wait() && err != nil {
 		logger.Error("Failed to Mainflux adapter", zap.Error(err))
 		return err
 	}
@@ -68,7 +67,8 @@ func (b *Adapter) Close() {
 func (b *Adapter) Sub() error {
 	switch b.isLora {
 	case true:
-		if s := b.conn.Subscribe(loraServerTopic, 0, b.MessageHandler), err := s.Error(); s.Wait() && err != nil {
+		s := b.conn.Subscribe(loraServerTopic, 0, b.MessageHandler)
+		if err := s.Error(); s.Wait() && err != nil {
 			logger.Error("Failed to subscribe", zap.Error(err))
 			return err
 		}
@@ -105,6 +105,7 @@ func (b *Adapter) MessageHandler(c mqtt.Client, msg mqtt.Message) {
 		break
 	}
 
+	return
 }
 
 func (b *Adapter) onConnected(c mqtt.Client) {
@@ -113,7 +114,7 @@ func (b *Adapter) onConnected(c mqtt.Client) {
 	logger.Info("Connected to MQTT broker")
 }
 
-func (b *Backend) onConnectionLost(c mqtt.Client, reason error) {
+func (b *Adapter) onConnectionLost(c mqtt.Client, reason error) {
 	logger.Error("MQTT connection lost", zap.Error(reason))
 
 }
