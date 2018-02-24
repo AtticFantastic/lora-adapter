@@ -37,12 +37,14 @@ func main() {
 	adapter.InitLogger(logger)
 
 	// Create adapters that connect as MQTT clients to brokers of Mainflux and LoRa Server
-	if mainfluxAdapter, err := NewBackend(cfg.MainfluxURL, "", "", false); err != nil {
-		println("Cannot create the Mainflux backend")
+	if mainfluxAdapter, err := NewAdapter(cfg.MainfluxURL, "", "", false); err != nil {
+		logger.Error("Failed to Mainflux adapter", zap.Error(err))
+		return
 	}
 
-	if loraAdapter, err = NewBackend(cfg.LoraURL, "", "", true); err != nil {
-		println("Cannot create LoRa Server backend")
+	if loraAdapter, err = NewAdapter(cfg.LoraURL, "", "", true); err != nil {
+		logger.Error("Failed to LoRa Server adapter", zap.Error(err))
+		return
 	}
 
 	errs := make(chan error, 3)

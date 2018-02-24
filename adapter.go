@@ -8,6 +8,7 @@ import (
 
 	"github.com/containous/traefik/log"
 	"github.com/eclipse/paho.mqtt.golang"
+	"go.uber.org/zap"
 )
 
 // Adapter implements a MQTT pub-sub adapter between LoRa Sever and Mainflux
@@ -51,8 +52,9 @@ func NewAdapter(server, username, password string, isLora bool) (*Adapter, error
 
 // Send MQTT message
 func (b *Adapter) SendMQTTMsg(topic string, data []byte) error {
-	if token := b.conn.Publish(topic, 0, false, data); token.Wait() && token.Error() != nil {
-		return token.Error()
+	if token := b.conn.Publish(topic, 0, false, data), err := token.Error(); token.Wait() && err != nil {
+		logger.Error("Failed to Mainflux adapter", zap.Error(err))
+		return err
 	}
 	return nil
 }
@@ -66,9 +68,9 @@ func (b *Adapter) Close() {
 func (b *Adapter) Sub() error {
 	switch b.isLora {
 	case true:
-		if s := b.conn.Subscribe(loraServerTopic, 0, b.MessageHandler); s.Wait() && s.Error() != nil {
-			log.Info("Failed to subscribe, err: %v\n", s.Error())
-			return s.Error()
+		if s := b.conn.Subscribe(loraServerTopic, 0, b.MessageHandler), err := s.Error(); s.Wait() && err != nil {
+			logger.Error("Failed to subscribe", zap.Error(err))
+			return err
 		}
 	case false:
 		// For now we do not SUB to Mainflux
@@ -84,20 +86,20 @@ func (b *Adapter) MessageHandler(c mqtt.Client, msg mqtt.Message) {
 	case true:
 		// Mainflux backend is subscribed to LoRa Network Server and recieves LoRa messages
 		u := LoraMessage{}
-		errStatus := json.Unmarshal(msg.Payload(), &u)
-		if errStatus != nil {
-			log.Errorf("\nerror: decode json failed")
-			log.Errorf(errStatus.Error())
+		err := json.Unmarshal(msg.Payload(), &u)
+		if err != nil {
+			logger.Error("Failed to subscribe", zap.Error(err))
 			return
 		}
 
 		fmt.Printf("\n <-- RCVD DATA: %s\n", u.Data)
 		data, err := base64.StdEncoding.DecodeString(u.Data)
 		if err != nil {
-			log.Errorf("\nerror: decode base64 failed")
+			logger.Error("Failed to subscribe", zap.Error(err))
+			return
 		}
 
-		mainfluxBackend.SendMQTTMsg(mainfluxTopic, data)
+		mainfluxAdapter.SendMQTTMsg(mainfluxTopic, data)
 	case false:
 		// LoRa backend is not currently subsctibed to Mainflux MQTT broker
 		break
@@ -108,9 +110,10 @@ func (b *Adapter) MessageHandler(c mqtt.Client, msg mqtt.Message) {
 func (b *Adapter) onConnected(c mqtt.Client) {
 	defer b.mutex.RUnlock()
 	b.mutex.RLock()
-	log.Info("backend: connected to mqtt broker")
+	logger.Info("Connected to MQTT broker")
 }
 
 func (b *Backend) onConnectionLost(c mqtt.Client, reason error) {
-	log.Errorf("backend: mqtt connection error: %s", reason)
+	logger.Error("MQTT connection lost", zap.Error(reason))
+
 }
