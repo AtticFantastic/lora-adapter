@@ -1,6 +1,4 @@
-package main
-
-import ()
+package lora
 
 type DataRate struct {
 	Modulation   string  `json:"modulation"`
